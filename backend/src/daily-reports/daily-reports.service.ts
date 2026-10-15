@@ -1,17 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { join } from 'path';
-import { unlink } from 'fs/promises';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { CreateDailyReportDto } from './dto/create-daily-report.dto';
 import { UpdateDailyReportDto } from './dto/update-daily-report.dto';
 import { AuthenticatedUser } from '../common/auth-user.interface';
 import { assertProjectAccess } from '../common/project-access.util';
 
-const UPLOADS_ROOT = join(process.cwd(), 'uploads');
 
 @Injectable()
 export class DailyReportsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly storage: StorageService,
+    ) { }
 
     async create(dto: CreateDailyReportDto, user: AuthenticatedUser) {
         // Make sure the project exists.
@@ -264,13 +265,16 @@ export class DailyReportsService {
 
         await assertProjectAccess(this.prisma, user, report.projectId);
 
-        const relativePath = `daily-reports/${dailyReportId}/${file.filename}`;
+        const storedName = this.storage.makeStoredName(file.originalname);
+        const relativePath = `daily-reports/${dailyReportId}/${storedName}`;
+
+        await this.storage.save(relativePath, file.buffer, file.mimetype);
 
         return this.prisma.dailyReportAttachment.create({
             data: {
                 dailyReportId,
                 originalName: file.originalname,
-                storedName: file.filename,
+                storedName,
                 mimeType: file.mimetype,
                 fileSize: file.size,
                 filePath: relativePath,
@@ -300,12 +304,7 @@ export class DailyReportsService {
             attachment.dailyReport.projectId,
         );
 
-        try {
-            await unlink(join(UPLOADS_ROOT, attachment.filePath));
-        } catch {
-            // File may already be missing on disk; the DB row is
-            // still the source of truth, so continue regardless.
-        }
+        await this.storage.remove(attachment.filePath);
 
         await this.prisma.dailyReportAttachment.delete({
             where: { id: attachmentId },
@@ -329,11 +328,7 @@ export class DailyReportsService {
         await assertProjectAccess(this.prisma, user, report.projectId);
 
         for (const attachment of report.attachments) {
-            try {
-                await unlink(join(UPLOADS_ROOT, attachment.filePath));
-            } catch {
-                // File may already be missing on disk; continue regardless.
-            }
+            await this.storage.remove(attachment.filePath);
         }
 
         await this.prisma.dailyReport.delete({ where: { id } });

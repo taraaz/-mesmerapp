@@ -4,8 +4,8 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { mkdirSync } from 'fs';
-import { join } from 'path';
 import { AppModule } from './app.module';
+import { UPLOADS_ROOT } from './storage/storage.service';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -30,11 +30,16 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  const uploadsRoot = join(process.cwd(), 'uploads');
-  mkdirSync(uploadsRoot, { recursive: true });
-  app.useStaticAssets(uploadsRoot, { prefix: '/uploads/' });
+  // Without Supabase Storage configured, attachments live in the local
+  // uploads/ folder and are served from it directly. Otherwise
+  // StorageController handles /uploads/* by redirecting to Supabase.
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    mkdirSync(UPLOADS_ROOT, { recursive: true });
+    app.useStaticAssets(UPLOADS_ROOT, { prefix: '/uploads/' });
+  }
 
-  await app.listen(3000);
+  // Hosting platforms (e.g. Render) assign the port via PORT.
+  await app.listen(process.env.PORT ?? 3000);
 }
 
 bootstrap();

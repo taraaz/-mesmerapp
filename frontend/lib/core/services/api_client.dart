@@ -33,7 +33,12 @@ class ApiClient {
 
   static final ApiClient instance = ApiClient._internal();
 
-  static const String baseUrl = 'http://localhost:3000';
+  // Set at build time for hosted builds:
+  // flutter build web --dart-define=API_URL=https://your-backend.example
+  static const String baseUrl = String.fromEnvironment(
+    'API_URL',
+    defaultValue: 'http://localhost:3000',
+  );
   static const String _tokenKey = 'auth_token';
 
   final Dio _dio = Dio(

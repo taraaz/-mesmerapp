@@ -12,9 +12,7 @@ import {
     UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
-import { mkdirSync } from 'fs';
+import { memoryStorage } from 'multer';
 
 import { RfisService } from './rfis.service';
 import { CreateRfiDto } from './dto/create-rfi.dto';
@@ -22,7 +20,6 @@ import { UpdateRfiDto } from './dto/update-rfi.dto';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/auth-user.interface';
 
-const UPLOADS_ROOT = join(process.cwd(), 'uploads');
 
 @Controller('rfis')
 export class RfisController {
@@ -75,23 +72,7 @@ export class RfisController {
     @Post(':id/attachments')
     @UseInterceptors(
         FileInterceptor('file', {
-            storage: diskStorage({
-                destination: (req, _file, cb) => {
-                    const rfiId = String(req.params.id);
-                    const dir = join(UPLOADS_ROOT, 'rfis', rfiId);
-
-                    mkdirSync(dir, { recursive: true });
-
-                    cb(null, dir);
-                },
-                filename: (_req, file, cb) => {
-                    const unique = `${Date.now()}-${Math.round(
-                        Math.random() * 1e9,
-                    )}`;
-
-                    cb(null, `${unique}${extname(file.originalname)}`);
-                },
-            }),
+            storage: memoryStorage(),
             limits: {
                 fileSize: 25 * 1024 * 1024,
             },

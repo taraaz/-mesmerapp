@@ -11,9 +11,7 @@ import {
     UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
-import { mkdirSync } from 'fs';
+import { memoryStorage } from 'multer';
 
 import { DailyReportsService } from './daily-reports.service';
 import { CreateDailyReportDto } from './dto/create-daily-report.dto';
@@ -23,7 +21,6 @@ import { AuthenticatedUser } from '../common/auth-user.interface';
 import { Roles } from '../common/roles.decorator';
 import { Role } from '../../generated/prisma/client';
 
-const UPLOADS_ROOT = join(process.cwd(), 'uploads');
 
 @Controller('daily-reports')
 export class DailyReportsController {
@@ -73,28 +70,7 @@ export class DailyReportsController {
     @Post(':id/attachments')
     @UseInterceptors(
         FileInterceptor('file', {
-            storage: diskStorage({
-                destination: (req, _file, cb) => {
-                    const reportId = String(req.params.id);
-
-                    const dir = join(
-                        UPLOADS_ROOT,
-                        'daily-reports',
-                        reportId,
-                    );
-
-                    mkdirSync(dir, { recursive: true });
-
-                    cb(null, dir);
-                },
-                filename: (_req, file, cb) => {
-                    const unique = `${Date.now()}-${Math.round(
-                        Math.random() * 1e9,
-                    )}`;
-
-                    cb(null, `${unique}${extname(file.originalname)}`);
-                },
-            }),
+            storage: memoryStorage(),
             limits: {
                 fileSize: 25 * 1024 * 1024,
             },

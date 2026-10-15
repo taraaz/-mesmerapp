@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { join } from 'path';
-import { unlink } from 'fs/promises';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { CreateRfiDto } from './dto/create-rfi.dto';
 import { UpdateRfiDto } from './dto/update-rfi.dto';
 import { AuthenticatedUser } from '../common/auth-user.interface';
@@ -11,7 +10,6 @@ import {
     assertUserHasProjectAccess,
 } from '../common/project-access.util';
 
-const UPLOADS_ROOT = join(process.cwd(), 'uploads');
 
 const RFI_INCLUDE = {
     project: {
@@ -45,7 +43,10 @@ export interface RfiListFilters {
 
 @Injectable()
 export class RfisService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly storage: StorageService,
+    ) { }
 
     async create(dto: CreateRfiDto, user: AuthenticatedUser) {
         const project = await this.prisma.project.findUnique({
@@ -344,13 +345,16 @@ export class RfisService {
 
         await assertProjectAccess(this.prisma, user, rfi.projectId);
 
-        const relativePath = `rfis/${rfiId}/${file.filename}`;
+        const storedName = this.storage.makeStoredName(file.originalname);
+        const relativePath = `rfis/${rfiId}/${storedName}`;
+
+        await this.storage.save(relativePath, file.buffer, file.mimetype);
 
         const attachment = await this.prisma.rfiAttachment.create({
             data: {
                 rfiId,
                 originalName: file.originalname,
-                storedName: file.filename,
+                storedName,
                 mimeType: file.mimetype,
                 fileSize: file.size,
                 filePath: relativePath,
@@ -379,12 +383,7 @@ export class RfisService {
 
         await assertProjectAccess(this.prisma, user, attachment.rfi.projectId);
 
-        try {
-            await unlink(join(UPLOADS_ROOT, attachment.filePath));
-        } catch {
-            // File may already be missing on disk; the DB row is
-            // still the source of truth, so continue regardless.
-        }
+        await this.storage.remove(attachment.filePath);
 
         await this.prisma.rfiAttachment.delete({ where: { id: attachmentId } });
 
@@ -409,11 +408,7 @@ export class RfisService {
         await assertProjectAccess(this.prisma, user, rfi.projectId);
 
         for (const attachment of rfi.attachments) {
-            try {
-                await unlink(join(UPLOADS_ROOT, attachment.filePath));
-            } catch {
-                // File may already be missing on disk; continue regardless.
-            }
+            await this.storage.remove(attachment.filePath);
         }
 
         await this.prisma.rfi.delete({ where: { id } });
