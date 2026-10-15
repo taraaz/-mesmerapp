@@ -20,3 +20,4 @@ backend/generated/
 .agents/
 .windsurf/
 skills-lock.json
+backend/db-backups/
