@@ -10,7 +10,7 @@ services:
     buildCommand: npm ci && npx prisma generate && npm run build
     # Applies any pending migrations to Supabase before starting.
     startCommand: npx prisma migrate deploy && node dist/src/main.js
-    healthCheckPath: /
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: "22"
