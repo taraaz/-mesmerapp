@@ -1,0 +1,22 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Real project documents and user uploads (not for the repo)
+Data-for-App/
+backend/uploads/
+
+# Dependencies / build output
+node_modules/
+dist/
+build/
+backend/generated/
+*.log
+
+# Local tool config
+.claude/
+.mcp.json
+.agents/
+.windsurf/
+skills-lock.json

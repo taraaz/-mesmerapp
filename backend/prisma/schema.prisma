@@ -1,0 +1,296 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  MAIN_ADMIN
+  PROJECT_MANAGER
+  TECHNICAL_EXPERT
+}
+
+model User {
+  id           Int     @id @default(autoincrement())
+  name         String
+  email        String  @unique
+  passwordHash String
+  role         Role
+  jobTitle     String?
+  description  String?
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projectAccess UserProject[]
+
+  rfisCreated      Rfi[]              @relation("RfiCreatedBy")
+  rfisAssigned     Rfi[]              @relation("RfiAssignedTo")
+  rfiStatusChanges RfiStatusHistory[] @relation("RfiStatusChangedBy")
+}
+
+model Project {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  location    String
+  description String?
+  status      String   @default("Active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  dailyReports DailyReport[]
+  userAccess   UserProject[]
+  rfis         Rfi[]
+}
+
+model UserProject {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  projectId  Int
+  assignedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+}
+
+model DailyReport {
+  id        Int @id @default(autoincrement())
+  projectId Int
+
+  reportDate  DateTime
+  weather     String?
+  windSpeed   Float?
+  temperature Float?
+  moisture    Float?
+
+  generalIssues String?
+  status        String  @default("Draft")
+
+  preparedBy     String?
+  preparedByRole String?
+
+  confirmedBy     String?
+  confirmedByRole String?
+
+  approvedBy     String?
+  approvedByRole String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  personnel    DailyReportPersonnel[]
+  equipment    DailyReportEquipment[]
+  executedWork DailyReportExecutedWork[]
+  materials    DailyReportMaterial[]
+  nextDayWork  DailyReportNextDayWork[]
+  attachments  DailyReportAttachment[]
+}
+
+model DailyReportPersonnel {
+  id            Int @id @default(autoincrement())
+  dailyReportId Int
+
+  category String
+  position String
+  count    Int
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+}
+
+model DailyReportEquipment {
+  id            Int @id @default(autoincrement())
+  dailyReportId Int
+
+  equipment String
+  active    Int
+  total     Int
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+}
+
+model DailyReportExecutedWork {
+  id            Int @id @default(autoincrement())
+  dailyReportId Int
+
+  location            String
+  description         String
+  unit                String?
+  totalPhysicalVolume String?
+  sinceBeginning      String?
+  quantity            String?
+  completedPercent    String?
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+}
+
+model DailyReportMaterial {
+  id            Int @id @default(autoincrement())
+  dailyReportId Int
+
+  material String
+  unit     String?
+  number   String?
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+}
+
+model DailyReportNextDayWork {
+  id            Int @id @default(autoincrement())
+  dailyReportId Int
+
+  location    String
+  description String
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+}
+
+model DailyReportAttachment {
+  id            Int @id @default(autoincrement())
+  dailyReportId Int
+
+  originalName String
+  storedName   String
+  mimeType     String?
+  fileSize     Int?
+  filePath     String
+  isPhoto      Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// RFI (Request for Inspection / Information)
+// ============================================================
+
+model Rfi {
+  id        Int @id @default(autoincrement())
+  projectId Int
+
+  // Project-scoped unique identifiers. `sequence` is the plain
+  // per-project counter (1, 2, 3, ...) used to derive `rfiNumber`
+  // (e.g. "RFI-P001-0001") without ever colliding across projects.
+  sequence  Int
+  rfiNumber String
+
+  subject       String?
+  type          String?
+  revision      String? @default("00")
+  enclosedCount Int?    @default(0)
+
+  requestDate        DateTime?
+  inspectionTimeFrom String?
+  inspectionTimeTo   String?
+  inspectionSequence String?
+
+  location          String?
+  elevationLocation String?
+  workType          String?
+  drawingNo         String?
+
+  othersSpecify     String?
+  particularDetails String?
+
+  permittedWorkDescription String?
+  approxQuantity           String?
+
+  submittedByName String?
+  submittedDate   DateTime?
+  receivedByName  String?
+  receivedDate    DateTime?
+
+  engineerComment      String?
+  supervisorSignedName String?
+  supervisorSignedDate DateTime?
+
+  status String @default("Draft")
+
+  createdById  Int
+  assignedToId Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  User    @relation("RfiCreatedBy", fields: [createdById], references: [id])
+  assignedTo User?   @relation("RfiAssignedTo", fields: [assignedToId], references: [id])
+
+  purposeItems      RfiPurposeItem[]
+  reviewers         RfiReviewer[]
+  inspectionReports RfiInspectionReport[]
+  attachments       RfiAttachment[]
+  statusHistory     RfiStatusHistory[]
+
+  @@unique([projectId, rfiNumber])
+  @@unique([projectId, sequence])
+}
+
+model RfiPurposeItem {
+  id    Int @id @default(autoincrement())
+  rfiId Int
+
+  category String
+  item     String
+
+  rfi Rfi @relation(fields: [rfiId], references: [id], onDelete: Cascade)
+}
+
+model RfiReviewer {
+  id    Int @id @default(autoincrement())
+  rfiId Int
+
+  discipline String
+  name       String?
+
+  rfi Rfi @relation(fields: [rfiId], references: [id], onDelete: Cascade)
+}
+
+model RfiInspectionReport {
+  id    Int @id @default(autoincrement())
+  rfiId Int
+
+  discipline String?
+  remarks    String?
+  name       String?
+
+  rfi Rfi @relation(fields: [rfiId], references: [id], onDelete: Cascade)
+}
+
+model RfiAttachment {
+  id    Int @id @default(autoincrement())
+  rfiId Int
+
+  originalName String
+  storedName   String
+  mimeType     String?
+  fileSize     Int?
+  filePath     String
+
+  createdAt DateTime @default(now())
+
+  rfi Rfi @relation(fields: [rfiId], references: [id], onDelete: Cascade)
+}
+
+model RfiStatusHistory {
+  id    Int @id @default(autoincrement())
+  rfiId Int
+
+  status      String
+  note        String?
+  changedById Int
+  changedAt   DateTime @default(now())
+
+  rfi       Rfi  @relation(fields: [rfiId], references: [id], onDelete: Cascade)
+  changedBy User @relation("RfiStatusChangedBy", fields: [changedById], references: [id])
+}
